@@ -1,0 +1,60 @@
+name: Build VST3
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: Windows
+          - os: macos-latest
+            name: macOS
+          - os: ubuntu-latest
+            name: Linux
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux Abhaengigkeiten
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev \
+            libxrandr-dev libxcursor-dev libxcomposite-dev libfreetype-dev \
+            libfontconfig1-dev libgl1-mesa-dev zip
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+
+      - name: Zip (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path "build/VoidRageComp_artefacts/Release/VST3/*.vst3" -DestinationPath "VoidRage-Windows-VST3.zip"
+
+      - name: Zip (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cd build/VoidRageComp_artefacts/Release/VST3
+          ditto -c -k --keepParent "VOID RAGE COMP.vst3" "$GITHUB_WORKSPACE/VoidRage-macOS-VST3.zip"
+
+      - name: Zip (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd build/VoidRageComp_artefacts/Release/VST3
+          zip -r "$GITHUB_WORKSPACE/VoidRage-Linux-VST3.zip" "VOID RAGE COMP.vst3"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VoidRage-${{ matrix.name }}-VST3
+          path: VoidRage-*.zip
